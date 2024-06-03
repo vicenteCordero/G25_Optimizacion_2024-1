@@ -5,6 +5,15 @@ import pandas as pd
 undefined = -1
 
 def main():
+    energia_por_tipo = pd.read_csv("data/energia_por_tipo.csv", header=None)
+    satisfaccion_por_tipo = pd.read_csv("data/satisfaccion.csv", header=None)
+    costo_por_tipo = pd.read_csv("data/costo_por_tipo.csv", header=None)
+    energia_total_edificio = pd.read_csv("data/energia_total_edificio.csv")
+    cantidad_estacionamientos = pd.read_csv("data/cantidad_estacionamientos.csv", header=None)
+    presupuesto = pd.read_csv("data/presupuesto.csv", header=None)
+    potencia_por_auto_dia = pd.read_csv("data/potencia_por_auto_dia.csv", header=None)
+    capacidad_por_auto = pd.read_csv("data/capacidad_por_auto.csv", header=None)
+    
     I = 3 # tipos de cargadores distintos
     HT = 10 # cantidad total de horas
     M = undefined # cantidad de autos que llegan TODO
@@ -17,7 +26,7 @@ def main():
 
 
     """ Parámetros """
-    wc = {i: undefined for i in tipos_cargadores}
+    wc = {i:  for i in tipos_cargadores} # 1.1 - 3.3 kW
     wt = undefined
     c = {i: undefined for i in tipos_cargadores}
     n_et = undefined
