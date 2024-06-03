@@ -2,22 +2,28 @@ from gurobipy import Model, quicksum, GRB
 import pandas as pd
 
 
+""" Constantes """
+# definidas en bibliografía
+CARGA_ESTANDAR = 0.75 # mínimo para considerar al vehículo cargado
+CARGA_MAXIMA = 0.8 # máximo que debe cargarse la batería
+
+
+I = 3 # tipos de cargadores distintos
+HT = 10 # cantidad total de horas
+M = 100 # cantidad de autos que llegan
+D = 3653 # días totales
+
+
 undefined = -1
+
 
 def main():
     energia_por_tipo = pd.read_csv("data/energia_por_tipo.csv", header=None)
     satisfaccion_por_tipo = pd.read_csv("data/satisfaccion.csv", header=None)
-    costo_por_tipo = pd.read_csv("data/costo_por_tipo.csv", header=None)
-    energia_total_edificio = pd.read_csv("data/energia_total_edificio.csv")
+    costos_por_tipo = pd.read_csv("data/costos_por_tipo.csv", header=None)
+    energia_total_edificio = pd.read_csv("data/energia_total_edificio.csv", header=None)
     cantidad_estacionamientos = pd.read_csv("data/cantidad_estacionamientos.csv", header=None)
     presupuesto = pd.read_csv("data/presupuesto.csv", header=None)
-    potencia_por_auto_dia = pd.read_csv("data/potencia_por_auto_dia.csv", header=None)
-    capacidad_por_auto = pd.read_csv("data/capacidad_por_auto.csv", header=None)
-    
-    I = 3 # tipos de cargadores distintos
-    HT = 10 # cantidad total de horas
-    M = undefined # cantidad de autos que llegan TODO
-    D = 3653 # días totales
 
     tipos_cargadores = range(1, I + 1)
     horas_del_dia = range(1, HT + 1)
@@ -26,14 +32,14 @@ def main():
 
 
     """ Parámetros """
-    wc = {i:  for i in tipos_cargadores} # 1.1 - 3.3 kW
-    wt = undefined
-    c = {i: undefined for i in tipos_cargadores}
-    n_et = undefined
-    p = undefined
+    wc = {i: energia_por_tipo.iat[i - 1, 1] for i in tipos_cargadores} # 1.1 - 3.3 kW
+    wt = energia_total_edificio.iat[0, 0]
+    c = {i: costos_por_tipo.iat[i - 1, 1] for i in tipos_cargadores}
+    n_et = cantidad_estacionamientos.iat[0, 0]
+    p = presupuesto.iat[0, 0]
     cb = {m: undefined for m in automoviles_recibidos}
     w = {(m, d): undefined for m in automoviles_recibidos for d in cantidad_dias}
-    h = {i: undefined for i in tipos_cargadores}
+    h = {i: satisfaccion_por_tipo.iat[i - 1, 1] for i in tipos_cargadores}
 
 
     # creación modelo
@@ -41,14 +47,18 @@ def main():
 
 
     """ Variables """
+    # número de estacionamientos del tipo i a instalar
     n_e = model.addVars(tipos_cargadores, vtype=GRB.INTEGER)
     
+    # si al auto m se le asigna  un cargador de tipo i el día d
     x = model.addVars(automoviles_recibidos, tipos_cargadores, cantidad_dias,
                     vtype=GRB.BINARY)
     
+    # si el auto m está cargando con cargador tipo i en la hora h el día d
     car = model.addVars(automoviles_recibidos, horas_del_dia, cantidad_dias, tipos_cargadores,
                     vtype=GRB.BINARY)
     
+    # cantidad de horas que el auto m está cargando el día d con el cargador i
     t = model.addVars(automoviles_recibidos, cantidad_dias, tipos_cargadores,
                     vtype=GRB.CONTINUOUS)
     
@@ -56,25 +66,114 @@ def main():
 
 
     """ Restricciones """
-    # TODO
+    # cantidad instalados menor o igual a los totales disponibles
+    model.addConstr((
+        quicksum(n_e[i] for i in tipos_cargadores) <= n_et
+    ), name="R1")
+
+    
+    # no se puede superar presupuesto
+    model.addConstr((
+        p >= quicksum(c[i] * n_e[i] for i in tipos_cargadores)
+    ), name="R2")
+
+
+    # potencia total consumida es menor o igual a la capacidad máx. del edificio
+    model.addConstrs((
+        wt >= quicksum(quicksum(car[m, h, d, i] * wc[i] for i in tipos_cargadores) for m in automoviles_recibidos)
+        for h in horas_del_dia for d in cantidad_dias
+    ), name="R3")
+
+
+    # carga mínima de cada auto (carga estándar)
+    model.addConstrs((
+        quicksum(t[m, d, i] * wc[i] for i in tipos_cargadores) - w[m, d] >=
+        CARGA_ESTANDAR * cb[m] for m in automoviles_recibidos for d in cantidad_dias
+    ), name="R4")
+
+
+    # cada vehículo se carga, a lo más, al 80% de su capacidad máxima de kW
+    model.addConstrs((
+        CARGA_MAXIMA * cb[m] >= quicksum(t[m, d, i] * wc[i]) - w[m, d]
+        for m in automoviles_recibidos for d in cantidad_dias
+    ), name="R5")
+
+
+    # definición de T_mid
+    model.addConstrs((
+        t[m, i, d] == (0.8 * cb[m] - w[m, d])/wc[i] * x[m, i, d]
+        for i in tipos_cargadores for m in automoviles_recibidos for d in cantidad_dias
+    ), name="R6")
+
+
+    # el tiempo que un auto ocupa un estacionamiento
+    # es al menos el necesario para una carga estándar
+    model.addConstr((
+        quicksum(quicksum(car[m, h, d, i] for i in tipos_cargadores) for h in horas_del_dia) >=
+        quicksum(t[m, d, i] for i in tipos_cargadores)
+        for m in automoviles_recibidos for d in cantidad_dias
+    ), name="R7")
+
+    model.addConstr((
+        quicksum(quicksum(car[m, h, d, i] for i in tipos_cargadores) for h in horas_del_dia) <=
+        quicksum(t[m, d, i] + 1 for i in tipos_cargadores)
+        for m in automoviles_recibidos for d in cantidad_dias
+    ), name="R8")
+
+
+    # para que un auto m esté cargando con tipo i, debe estar en dicho estacionamiento
+    model.addConstrs((
+        x[m, i, d] >= car[m, h, d, i] for h in horas_del_dia for d in cantidad_dias
+        for i in tipos_cargadores for m in automoviles_recibidos
+    ), name="R9")
+
+
+    # un auto solo puede tener un estacionamiento por día
+    model.addConstrs((
+        1 >= quicksum(x[m, i, d] for i in tipos_cargadores)
+        for m in automoviles_recibidos for d in cantidad_dias
+    ), name="R10")
+
+
+    # La cantidad de autos que se cargan con cargador tipo i en cualquier día no puede superar
+    # la cantidad de estacionamientos instalada de ese tipo
+    model.addConstrs((
+        n_e[i] >= quicksum(x[m, i, d] for m in automoviles_recibidos)
+        for i in tipos_cargadores for d in cantidad_dias
+    ), name="R11")
+
+
+
+    # cantidad de estacionamientos es entero positivo
+    model.addConstrs((
+        n_e[i] >= 0 for i in tipos_cargadores
+    ), name="R12")
+
+
+    # tiempo de carga es real positivo
+    model.addConstrs((
+        t[m, d, i] >= 0
+        for m in automoviles_recibidos for d in cantidad_dias for i in tipos_cargadores
+    ), name="R13")
+
+    
 
     """ Función Objetivo """
     f_obj = quicksum(
         quicksum(
             quicksum(
                 h[i] * x[m, i, d] for i in tipos_cargadores
-                )
-            for m in automoviles_recibidos
-        )
-        for d in cantidad_dias
+            ) for m in automoviles_recibidos
+        ) for d in cantidad_dias
     )
 
     model.setObjective(f_obj, GRB.MAXIMIZE)
     model.optimize()
 
 
-    """ IMPRIMIR VALORES"""
-    # TODO
+    """ GUARDAR VALORES """
+    valor_optimo = model.ObjVal
+
 
 
 
