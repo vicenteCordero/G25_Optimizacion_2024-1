@@ -13,8 +13,8 @@ CARGA_MEDIA = 0.5 # carga promedio de un vehículo eléctrico cualquiera
 
 
 I = 3 # tipos de cargadores distintos
-HT = 3 # cantidad total de horas
-M = 2 # cantidad de autos que llegan
+HT = 8 # cantidad total de horas
+M = 10 # cantidad de autos que llegan
 D = 5 # días totales
 
 # seed para los números generados
@@ -53,7 +53,6 @@ def main():
     w = {(m, d): carga_por_auto_dia[m - 1][d - 1] for m in automoviles_recibidos for d in cantidad_dias}
     h = {i: int(satisfaccion_por_tipo.iat[i - 1, 1]) for i in tipos_cargadores}
 
-    print(w[1,1])
     # creación modelo
     model = Model()
 
@@ -120,18 +119,18 @@ def main():
 
     # el tiempo que un auto ocupa un estacionamiento
     # es al menos el necesario para una carga estándar
-    model.addConstr((
+    model.addConstrs((
         quicksum(quicksum(car[m, h, d, i] for i in tipos_cargadores) for h in horas_del_dia) >=
         quicksum(t[m, d, i] for i in tipos_cargadores)
         for m in automoviles_recibidos for d in cantidad_dias
     ), name="R7")
 
 
-    #model.addConstr((
-    #    quicksum(quicksum(car[m, h, d, i] for i in tipos_cargadores) for h in horas_del_dia) <=
-    #    quicksum(t[m, d, i] + 1 for i in tipos_cargadores)
-    #    for m in automoviles_recibidos for d in cantidad_dias
-    #), name="R8")
+    model.addConstrs((
+        quicksum(quicksum(car[m, h, d, i] for i in tipos_cargadores) for h in horas_del_dia) <=
+        quicksum(t[m, d, i] + 1 for i in tipos_cargadores)
+        for m in automoviles_recibidos for d in cantidad_dias
+    ), name="R8")
 
 
     # para que un auto m esté cargando con tipo i, debe estar en dicho estacionamiento
@@ -190,8 +189,8 @@ def main():
     print(valor_optimo)
 
     data = {f"Cargador tipo {i}": [n_e[i].x] for i in tipos_cargadores}
-    print(data)
     df_cargadores = pd.DataFrame(data=data)
+    print(df_cargadores)
 
 
 
