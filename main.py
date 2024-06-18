@@ -1,16 +1,10 @@
 from gurobipy import Model, quicksum, GRB
 import pandas as pd
 import numpy as np
+import json
 
 
-""" Constantes """
-# definidas en bibliografía
-CARGA_ESTANDAR = 0.75 # mínimo para considerar al vehículo cargado
-CARGA_MAXIMA = 0.8 # máximo que debe cargarse la batería
-
-CAPACIDAD_POTENCIA_MEDIA = 30 # capacidad de potencia promedio de un vehículo eléctrico
-CARGA_MEDIA = 0.5 # carga promedio de un vehículo eléctrico cualquiera
-
+""" Rangos constantes """
 
 I = 3 # tipos de cargadores distintos
 HT = 10 # cantidad total de horas
@@ -27,31 +21,44 @@ def main():
     automoviles_recibidos = range(1, M + 1)
     cantidad_dias = range(1, D + 1)
 
+    with open("data/data.json", "r") as f:
+        data: dict = json.load(f)
+    
+    cantidad_estacionamientos: int = data["cantidad_estacionamientos"]
+    costos_por_tipo: dict = data["costos_por_tipo"]
+    energia_por_tipo: dict = data["energia_por_tipo"]
+    energia_total_edificio: int = data["energia_total_edificio"]
+    presupuesto: int = data["presupuesto"]
+    satisfaccion_por_tipo: dict = data["satisfaccion"]
 
-    # recolectados en archivos .csv
-    energia_por_tipo = pd.read_csv("data/energia_por_tipo.csv", header=None)
-    satisfaccion_por_tipo = pd.read_csv("data/satisfaccion.csv", header=None)
-    costos_por_tipo = pd.read_csv("data/costos_por_tipo.csv", header=None)
-    energia_total_edificio = pd.read_csv("data/energia_total_edificio.csv", header=None)
-    cantidad_estacionamientos = pd.read_csv("data/cantidad_estacionamientos.csv", header=None)
-    presupuesto = pd.read_csv("data/presupuesto.csv", header=None)
+    # mínimo para considerar al vehículo cargado
+    carga_estandar = data["carga_estandar"]
+    
+    # máximo que debe cargarse la batería
+    carga_maxima = data["carga_maxima"]
+    
+    # capacidad de potencia promedio de un vehículo eléctrico
+    capacidad_potencia_media = data["capacidad_potencia_media"]
+    
+    # carga promedio de un vehículo eléctrico cualquiera
+    carga_media = data["carga_media"]
 
-
+    
     # randomizados (explicación en el informe)
-    capacidad_por_auto = np.around(np.random.normal(loc=CAPACIDAD_POTENCIA_MEDIA, scale=1, size=M), 2)
+    capacidad_por_auto = np.around(np.random.normal(loc=capacidad_potencia_media, scale=1, size=M), 2)
 
-    carga_por_auto_dia = [np.around(np.random.normal(loc=CARGA_MEDIA*capacidad_por_auto[m - 1], scale=1, size=D), 2) for m in automoviles_recibidos]
+    carga_por_auto_dia = [np.around(np.random.normal(loc=carga_media*capacidad_por_auto[m - 1], scale=1, size=D), 2) for m in automoviles_recibidos]
 
 
     """ Parámetros """
-    wc = {i: float(energia_por_tipo.iat[i - 1, 1]) for i in tipos_cargadores}
-    wt = int(energia_total_edificio.iat[0, 0])
-    c = {i: int(costos_por_tipo.iat[i - 1, 1]) for i in tipos_cargadores}
-    n_et = int(cantidad_estacionamientos.iat[0, 0])
-    p = int(presupuesto.iat[0, 0])
+    wc = {i: float(energia_por_tipo[str(i)]) for i in tipos_cargadores}
+    wt = energia_total_edificio
+    c = {i: int(costos_por_tipo[str(i)]) for i in tipos_cargadores}
+    n_et = cantidad_estacionamientos
+    p = presupuesto
     cb = {m: capacidad_por_auto[m - 1] for m in automoviles_recibidos}
     w = {(m, d): carga_por_auto_dia[m - 1][d - 1] for m in automoviles_recibidos for d in cantidad_dias}
-    h = {i: int(satisfaccion_por_tipo.iat[i - 1, 1]) for i in tipos_cargadores}
+    h = {i: int(satisfaccion_por_tipo[str(i)]) for i in tipos_cargadores}
 
     # creación modelo
     model = Model()
@@ -99,7 +106,7 @@ def main():
     # carga mínima de cada auto (carga estándar)
     model.addConstrs((
         quicksum(t[m, d, i] * wc[i] for i in tipos_cargadores) + w[m, d] >=
-        CARGA_ESTANDAR * cb[m] for m in automoviles_recibidos for d in cantidad_dias
+        carga_estandar * cb[m] for m in automoviles_recibidos for d in cantidad_dias
     ), name="R4")
 
 
