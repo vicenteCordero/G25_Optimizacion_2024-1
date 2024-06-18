@@ -13,9 +13,9 @@ CARGA_MEDIA = 0.5 # carga promedio de un vehículo eléctrico cualquiera
 
 
 I = 3 # tipos de cargadores distintos
-HT = 8 # cantidad total de horas
-M = 10 # cantidad de autos que llegan
-D = 5 # días totales
+HT = 10 # cantidad total de horas
+M = 100 # cantidad de autos que llegan
+D = 30 # días totales
 
 # seed para los números generados
 np.random.seed(0)
@@ -191,6 +191,8 @@ def main():
     data = {f"Cargador tipo {i}": [n_e[i].x] for i in tipos_cargadores}
     df_cargadores = pd.DataFrame(data=data)
     print(df_cargadores)
+
+    df_cargadores.to_excel("resultados.xlsx")
 
 
 
