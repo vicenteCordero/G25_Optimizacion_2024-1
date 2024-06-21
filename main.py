@@ -8,20 +8,20 @@ import json
 
 I = 3 # tipos de cargadores distintos
 HT = 10 # cantidad total de horas
-M = 100 # cantidad de autos que llegan
-D = 30 # días totales
+M = 100 # cantidad de autos que llegan al día
+D = 1 # días totales
 
 # seed para los números generados
 np.random.seed(0)
 
 
-def main():
+def main(data_file):
     tipos_cargadores = range(1, I + 1)
     horas_del_dia = range(1, HT + 1)
     automoviles_recibidos = range(1, M + 1)
     cantidad_dias = range(1, D + 1)
 
-    with open("data/data.json", "r") as f:
+    with open(data_file, "r") as f:
         data: dict = json.load(f)
     
     cantidad_estacionamientos: int = data["cantidad_estacionamientos"]
@@ -205,4 +205,5 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    data_file = "data/data.json"
+    main(data_file)

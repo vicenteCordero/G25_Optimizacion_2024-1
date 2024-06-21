@@ -2,7 +2,7 @@
     "costos_por_tipo": {
         "1": 197990,
         "2": 756990,
-        "3": 6300000
+        "3": 2630000
     },
     
     "energia_por_tipo": {
@@ -18,7 +18,7 @@
         "3": 8000
     },
 
-    "cantidad_estacionamientos": 100,
+    "cantidad_estacionamientos": 150,
     "presupuesto": 50000000,
     "energia_total_edificio": 1000,
     
