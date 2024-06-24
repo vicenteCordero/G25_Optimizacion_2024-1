@@ -1,7 +1,7 @@
 from gurobipy import Model, quicksum, GRB
 import pandas as pd
 import numpy as np
-import json
+from datos import data_dict
 
 
 """ Rangos constantes """
@@ -9,39 +9,33 @@ import json
 I = 3 # tipos de cargadores distintos
 HT = 10 # cantidad total de horas
 M = 100 # cantidad de autos que llegan al día
-D = 1 # días totales
+D = 10 # días totales
 
 # seed para los números generados
 np.random.seed(0)
 
 
-def main(data_file):
+def main():
     tipos_cargadores = range(1, I + 1)
     horas_del_dia = range(1, HT + 1)
     automoviles_recibidos = range(1, M + 1)
     cantidad_dias = range(1, D + 1)
 
-    with open(data_file, "r") as f:
-        data: dict = json.load(f)
-    
-    cantidad_estacionamientos: int = data["cantidad_estacionamientos"]
-    costos_por_tipo: dict = data["costos_por_tipo"]
-    energia_por_tipo: dict = data["energia_por_tipo"]
-    energia_total_edificio: int = data["energia_total_edificio"]
-    presupuesto: int = data["presupuesto"]
-    satisfaccion_por_tipo: dict = data["satisfaccion"]
+    cantidad_estacionamientos: int = data_dict["cantidad_estacionamientos"]
+    costos_por_tipo: dict = data_dict["costos_por_tipo"]
+    energia_por_tipo: dict = data_dict["energia_por_tipo"]
+    energia_total_edificio: int = data_dict["energia_total_edificio"]
+    presupuesto: int = data_dict["presupuesto"]
+    satisfaccion_por_tipo: dict = data_dict["satisfaccion"]
 
     # mínimo para considerar al vehículo cargado
-    carga_estandar = data["carga_estandar"]
-    
-    # máximo que debe cargarse la batería
-    carga_maxima = data["carga_maxima"]
+    carga_estandar = data_dict["carga_estandar"]
     
     # capacidad de potencia promedio de un vehículo eléctrico
-    capacidad_potencia_media = data["capacidad_potencia_media"]
+    capacidad_potencia_media = data_dict["capacidad_potencia_media"]
     
     # carga promedio de un vehículo eléctrico cualquiera
-    carga_media = data["carga_media"]
+    carga_media = data_dict["carga_media"]
 
     
     # randomizados (explicación en el informe)
@@ -68,7 +62,7 @@ def main(data_file):
     # número de estacionamientos del tipo i a instalar
     n_e = model.addVars(tipos_cargadores, vtype=GRB.INTEGER)
     
-    # si al auto m se le asigna  un cargador de tipo i el día d
+    # si al auto m se le asigna un cargador de tipo i el día d
     x = model.addVars(automoviles_recibidos, tipos_cargadores, cantidad_dias,
                     vtype=GRB.BINARY)
     
@@ -193,17 +187,34 @@ def main(data_file):
     """ GUARDAR VALORES """
 
     valor_optimo = model.ObjVal
-    print(valor_optimo)
+    print(f"\n\nValor óptimo: {valor_optimo}\n")
 
-    data = {f"Cargador tipo {i}": [n_e[i].x] for i in tipos_cargadores}
-    df_cargadores = pd.DataFrame(data=data)
-    print(df_cargadores)
 
-    df_cargadores.to_excel("resultados.xlsx")
+    with pd.ExcelWriter('resultados.xlsx', engine='xlsxwriter') as writer:
+        df_valor_opt = pd.DataFrame(data=[f"{valor_optimo}"])
+        df_valor_opt.to_excel(writer, sheet_name='Valor Óptimo')
+        
+        # cargadores por tipo
+        data_cargadores = {f"Cargador tipo {i}": [n_e[i].x] for i in tipos_cargadores}
+        df_cargadores = pd.DataFrame(data=data_cargadores)
+        print(f"Cargadores instalados de cada tipo:\n{df_cargadores}\n")
+        df_cargadores.to_excel(writer, sheet_name='Cargadores de cada tipo')
 
+        gastado = sum(c[i]*n_e[i].x for i in tipos_cargadores)
+        print(f"Dinero gastado: {gastado} | Diferencia: {presupuesto - gastado}")
+
+        for d in cantidad_dias:
+            data = [[sum(car[m,h,d,i].x for m in automoviles_recibidos) for h in horas_del_dia]
+                    for i in tipos_cargadores]
+            
+            df_por_auto = pd.DataFrame(data=data, index=[f"Tipo {i}" for i in tipos_cargadores],
+                            columns=[f"Hora {h}" for h in horas_del_dia])
+            
+            startrow = (d - 1) * (len(df_por_auto) + 2)
+
+            df_por_auto.to_excel(writer, sheet_name='Cargadores asignados por día', startcol=0, startrow=startrow)
 
 
 
 if __name__ == "__main__":
-    data_file = "data/data.json"
-    main(data_file)
+    main()
